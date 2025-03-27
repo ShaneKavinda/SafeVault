@@ -1,0 +1,12 @@
+# Configuration files
+/appsettings.json
+/appsettings.*.json
+
+# Build artifacts
+/bin/
+/obj/
+
+# User-specific files
+*.user
+*.vs
+*.sln
