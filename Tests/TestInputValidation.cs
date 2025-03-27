@@ -20,6 +20,8 @@ public class TestInputValidation {
         string maliciousInput = "'; DROP TABLE Users; --";
         model.Username = maliciousInput;
         model.Email = "test@example.com";
+        model.Password = "SecurePassword123!";
+        model.ConfirmPassword = "SecurePassword123!";
 
         // Act
         var result = model.OnPost();
@@ -43,6 +45,8 @@ public class TestInputValidation {
         string maliciousInput = "<script>alert('XSS')</script>";
         model.Username = maliciousInput;
         model.Email = "test@example.com";
+        model.Password = "SecurePassword123!";
+        model.ConfirmPassword = "SecurePassword123!";
 
         // Act
         var result = model.OnPost();
