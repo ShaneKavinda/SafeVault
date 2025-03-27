@@ -5,35 +5,22 @@ using MySql.Data.MySqlClient;
 
 namespace SafeVault.Pages
 {
-    public class WebFormModel : PageModel
+    public class LoginModel : PageModel
     {
         [BindProperty]
         [Required(ErrorMessage = "Username is required.")]
-        [StringLength(100, ErrorMessage = "Username cannot exceed 100 characters.")]
         public string Username { get; set; } = string.Empty;
 
         [BindProperty]
-        [Required(ErrorMessage = "Email is required.")]
-        [EmailAddress(ErrorMessage = "Invalid email format.")]
-        public string Email { get; set; } = string.Empty;
-
-        [BindProperty]
         [Required(ErrorMessage = "Password is required.")]
-        [MinLength(8, ErrorMessage = "Password must be at least 8 characters.")]
+        [DataType(DataType.Password)]
         public string Password { get; set; } = string.Empty;
-
-        [BindProperty]
-        [Compare("Password", ErrorMessage = "Passwords do not match.")]
-
-        public string ConfirmPassword { get; set; } = string.Empty;
 
         private readonly string _connectionString;
 
         public string Message { get; set; } = string.Empty;
 
-        public string ErrorMessage { get; set; } = string.Empty;
-
-        public WebFormModel(IConfiguration configuration)
+        public LoginModel(IConfiguration configuration)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection") 
                                  ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
@@ -53,37 +40,37 @@ namespace SafeVault.Pages
                 return Page();
             }
 
-            if (Password != ConfirmPassword)
-            {
-                ErrorMessage = "Passwords do not match.";
-                return Page();
-            }
-
             try
             {
-                // Save to the database
+                // Verify the username and password
                 using (MySqlConnection connection = new MySqlConnection(_connectionString))
                 {
-                    string hashedPassword = HashPasswordService.HashPassword(Password);
-                    // use a parametrized query to prevent SQL injection
-                    string query = "INSERT INTO Users (Username, Email, Password) VALUES (@Username, @Email, @Password);";
+                    string query = "SELECT COUNT(*) FROM Users WHERE Username = @Username AND Password = @Password;";
                     MySqlCommand command = new MySqlCommand(query, connection);
                     command.Parameters.AddWithValue("@Username", Username);
-                    command.Parameters.AddWithValue("@Email", Email);
-                    command.Parameters.AddWithValue("@Password", hashedPassword);
+                    command.Parameters.AddWithValue("@Password", Password); // Ensure passwords are hashed in production
 
                     connection.Open();
-                    command.ExecuteNonQuery();
-                }
+                    int userCount = Convert.ToInt32(command.ExecuteScalar());
 
-                // Set success message and redirect to a success page
-                Message = "Form submitted successfully!";
-                return RedirectToPage("Success");
+                    if (userCount > 0)
+                    {
+                        // Login successful
+                        Message = "Login successful!";
+                        return RedirectToPage("Dashboard"); // Redirect to a dashboard or home page
+                    }
+                    else
+                    {
+                        // Invalid credentials
+                        ModelState.AddModelError(string.Empty, "Invalid username or password.");
+                        return Page();
+                    }
+                }
             }
             catch (Exception ex)
             {
                 // Handle database errors
-                ModelState.AddModelError(string.Empty, "An error occurred while saving your data. Please try again.");
+                ModelState.AddModelError(string.Empty, "An error occurred while verifying your credentials. Please try again.");
                 Console.WriteLine(ex.Message);
                 return Page();
             }
