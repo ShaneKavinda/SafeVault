@@ -49,22 +49,14 @@ Update the connection string in `appsettings.json`:
 ```
 
 ### 3. Apply Database Migrations
+Run the following command to create Initial Migration
+```bash
+dotnet ef migrations add InitialCreate
+```
+
 Run the following command to apply migrations:
 ```bash
 dotnet ef database update
-```
-
-### 4. Configure Email Settings (Optional)
-Create `appsettings.Development.json` for local email configuration:
-```json
-{
-  "EmailSettings": {
-    "SmtpServer": "smtp.example.com",
-    "Port": 587,
-    "Username": "your@email.com",
-    "Password": "yourpassword"
-  }
-}
 ```
 
 ---
