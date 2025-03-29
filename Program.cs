@@ -10,7 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages(options => 
     {
         // Secure all pages by default
-        options.Conventions.AuthorizeFolder("/");
+        options.Conventions.AuthorizeFolder("/Home");
         
         // Allow anonymous access to specific pages
         options.Conventions.AllowAnonymousToPage("/Login");
@@ -92,13 +92,6 @@ else
 using (var scope = app.Services.CreateScope())
 {
     await SeedRoles(scope.ServiceProvider);
-}
-
-// Configure the HTTP request pipeline
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Error");
-    app.UseHsts();
 }
 
 app.UseHttpsRedirection();
