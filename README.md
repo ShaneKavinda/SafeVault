@@ -99,13 +99,3 @@ dotnet test SafeVault.Tests
 - Role-based authorization
 
 ---
-
-## Configuration
-
-| Setting               | Environment Variable       | Default                  |
-|-----------------------|---------------------------|--------------------------|
-| Database Connection   | `SAFEVAULT_DB_CONNECTION` | From `appsettings.json` |
-| Email Service         | `SAFEVAULT_EMAIL_*`       | Development settings     |
-| Admin Credentials     | `SAFEVAULT_ADMIN_EMAIL/PASS` | Not set               |
-
----
