@@ -1,0 +1,14 @@
+@page
+@model SafeVault.Pages.ConfirmationSentModel
+@{
+    ViewData["Title"] = "Confirmation Sent";
+}
+
+<h1>Registration Successful</h1>
+@if (TempData["StatusMessage"] != null)
+{
+    <div class="alert alert-info">
+        @TempData["StatusMessage"]
+    </div>
+}
+<p>Please check your email to complete the registration process.</p>

@@ -1,15 +1,26 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.ComponentModel.DataAnnotations;
-using MySql.Data.MySqlClient;
+using System.Text.Encodings.Web;
+using SafeVault.Utilities;
+using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace SafeVault.Pages
 {
     public class WebFormModel : PageModel
     {
+        private readonly UserManager<IdentityUser> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly IEmailSender _emailSender;
+        private readonly ILogger<WebFormModel> _logger;
+
         [BindProperty]
         [Required(ErrorMessage = "Username is required.")]
         [StringLength(100, ErrorMessage = "Username cannot exceed 100 characters.")]
+        [RegularExpression(ValidationRules.UsernameRegex, ErrorMessage = ValidationRules.UsernameRegexError)]
+
         public string Username { get; set; } = string.Empty;
 
         [BindProperty]
@@ -19,74 +30,150 @@ namespace SafeVault.Pages
 
         [BindProperty]
         [Required(ErrorMessage = "Password is required.")]
-        [MinLength(8, ErrorMessage = "Password must be at least 8 characters.")]
+        [DataType(DataType.Password)]
+        [RegularExpression(ValidationRules.PasswordRegex, ErrorMessage = ValidationRules.PasswordRegexError)]
         public string Password { get; set; } = string.Empty;
 
         [BindProperty]
+        [DataType(DataType.Password)]
+        [RegularExpression(ValidationRules.PasswordRegex, ErrorMessage = ValidationRules.PasswordRegexError)]
         [Compare("Password", ErrorMessage = "Passwords do not match.")]
-
         public string ConfirmPassword { get; set; } = string.Empty;
 
-        private readonly string _connectionString;
+        [BindProperty]
+        [Required(ErrorMessage = "Role is required.")]
+        public string SelectedRole { get; set; } = string.Empty;
 
-        public string Message { get; set; } = string.Empty;
-
-        public string ErrorMessage { get; set; } = string.Empty;
-
-        public WebFormModel(IConfiguration configuration)
+        public WebFormModel(
+            UserManager<IdentityUser> userManager,
+            RoleManager<IdentityRole> roleManager,
+            IEmailSender emailSender,
+            ILogger<WebFormModel> logger)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") 
-                                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            _userManager = userManager;
+            _roleManager = roleManager;
+            _emailSender = emailSender;
+            _logger = logger;
         }
 
+            // Add this property for the role dropdown
+        public List<SelectListItem> RoleList { get; } = new List<SelectListItem>
+        {
+            new SelectListItem { Value = "Admin", Text = "Admin" },
+            new SelectListItem { Value = "User", Text = "User" }
+        };
+        // Add this to the OnGet method
         public void OnGet()
         {
-            // Initialize or reset any data if needed
+            // Initialize any required data
+            if (RoleList.All(r => r.Value != SelectedRole))
+            {
+                SelectedRole = "User"; // Default value
+            }
         }
 
-        public IActionResult OnPost()
+        public async Task<IActionResult> OnPostAsync()
         {
-            // Validate the input
             if (!ModelState.IsValid)
             {
-                // Return the page with validation errors
                 return Page();
             }
-
-            if (Password != ConfirmPassword)
+            if (!ValidationRules.IsValidEmail(Email))
             {
-                ErrorMessage = "Passwords do not match.";
+                ModelState.AddModelError(nameof(Email), "Invalid email address");
+                return Page();
+            }
+            if (!ValidationRules.IsValidPassword(Password))
+            {
+                ModelState.AddModelError(nameof(Password), ValidationRules.PasswordRegexError);
+                return Page();
+            }
+            if (!ValidationRules.IsValidRole(SelectedRole))
+            {
+                ModelState.AddModelError(nameof(SelectedRole), "Invalid role selection");
                 return Page();
             }
 
             try
             {
-                // Save to the database
-                using (MySqlConnection connection = new MySqlConnection(_connectionString))
+                // Validate role against allowed roles
+                var allowedRoles = new[] { "User", "Admin" }; // Define valid roles
+                if (!allowedRoles.Contains(SelectedRole))
                 {
-                    string hashedPassword = HashPasswordService.HashPassword(Password);
-                    // use a parametrized query to prevent SQL injection
-                    string query = "INSERT INTO Users (Username, Email, Password) VALUES (@Username, @Email, @Password);";
-                    MySqlCommand command = new MySqlCommand(query, connection);
-                    command.Parameters.AddWithValue("@Username", Username);
-                    command.Parameters.AddWithValue("@Email", Email);
-                    command.Parameters.AddWithValue("@Password", hashedPassword);
-
-                    connection.Open();
-                    command.ExecuteNonQuery();
+                    ModelState.AddModelError(string.Empty, "Invalid role selection.");
+                    return Page();
                 }
 
-                // Set success message and redirect to a success page
-                Message = "Form submitted successfully!";
-                return RedirectToPage("Success");
+                var user = new IdentityUser
+                {
+                    UserName = Username,
+                    Email = Email,
+                    EmailConfirmed = false // Require email confirmation
+                };
+
+                var result = await _userManager.CreateAsync(user, Password);
+
+                if (result.Succeeded)
+                {
+                    // Add user to selected role
+                    await _userManager.AddToRoleAsync(user, SelectedRole);
+
+                    // Generate email confirmation token
+                    var code = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                    var callbackUrl = Url.Page(
+                        "/ConfirmEmail",
+                        pageHandler: null,
+                        values: new { userId = user.Id, code },
+                        protocol: Request.Scheme);
+
+                    // Add null check for callbackUrl
+                    if (string.IsNullOrWhiteSpace(callbackUrl))
+                    {
+                        _logger.LogError("Failed to generate confirmation URL for user {UserId}", user.Id);
+                        throw new InvalidOperationException("Could not generate confirmation URL");
+                    }
+
+                    // Send confirmation email (implement IEmailSender)
+                   // Replace the email sending block with this
+                    var encodedCallbackUrl = HtmlEncoder.Default.Encode(callbackUrl);
+                    await _emailSender.SendEmailAsync(
+                        Email,
+                        "Confirm your email",
+                        $"Please confirm your account by <a href='{encodedCallbackUrl}'>clicking here</a>.");
+
+                    // Consider logging instead of keeping this in production
+                    Console.WriteLine($"Email confirmation link: {callbackUrl}");
+
+                    // Log the user creation but don't auto-sign-in
+                    TempData["StatusMessage"] = "Registration successful. Please check your email to confirm your account.";
+                    return RedirectToPage("/ConfirmationSent");
+                }
+
+                foreach (var error in result.Errors)
+                {
+                    ModelState.AddModelError(string.Empty, GetUserFriendlyError(error.Code));
+                }
             }
             catch (Exception ex)
             {
-                // Handle database errors
-                ModelState.AddModelError(string.Empty, "An error occurred while saving your data. Please try again.");
-                Console.WriteLine(ex.Message);
-                return Page();
+                // Log the error (implement proper logging)
+                _logger.LogError(ex, "Error during user registration");
+                ModelState.AddModelError(string.Empty, "An error occurred while processing your request.");
             }
+
+            return Page();
+        }
+
+        private string GetUserFriendlyError(string errorCode)
+        {
+            return errorCode switch
+            {
+                "DuplicateUserName" => "Username is already taken.",
+                "DuplicateEmail" => "Email address is already registered.",
+                "InvalidEmail" => "Invalid email address.",
+                "PasswordTooShort" => "Password does not meet complexity requirements.",
+                _ => "An error occurred during registration."
+            };
         }
     }
 }

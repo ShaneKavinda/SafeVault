@@ -2,17 +2,43 @@
 @model SafeVault.Pages.WebFormModel
 
 <form method="post">
-    <label for="username">Username:</label>
-    <input type="text" id="username" name="username">
+    <div asp-validation-summary="All" class="text-danger"></div>
+    
+    <div class="form-group">
+        <label asp-for="Username"></label>
+        <input asp-for="Username" class="form-control">
+        <span asp-validation-for="Username" class="text-danger"></span>
+    </div>
 
-    <label for="email">Email:</label>
-    <input type="email" id="email" name="email">
-    <br>
-    <label for="password">Password:</label>
-    <input type="password" id="password" name="password">
+    <div class="form-group">
+        <label asp-for="Email"></label>
+        <input asp-for="Email" class="form-control">
+        <span asp-validation-for="Email" class="text-danger"></span>
+    </div>
 
-    <label for="confirmPassword">Confirm Password:</label>
-    <input type="password" id="confirmPassword" name="confirmPassword">
+    <div class="form-group">
+        <label asp-for="Password"></label>
+        <input asp-for="Password" class="form-control">
+        <span asp-validation-for="Password" class="text-danger"></span>
+    </div>
 
-    <button type="submit">Submit</button>
+    <div class="form-group">
+        <label asp-for="ConfirmPassword"></label>
+        <input asp-for="ConfirmPassword" class="form-control">
+        <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+    </div>
+
+    <div class="form-group mb-3">
+        <label asp-for="SelectedRole"></label>
+        <select asp-for="SelectedRole" asp-items="Model.RoleList" class="form-control">
+            <option value="">-- Select Role --</option>
+        </select>
+        <span asp-validation-for="SelectedRole" class="text-danger"></span>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Submit</button>
 </form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

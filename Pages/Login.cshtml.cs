@@ -1,29 +1,37 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Identity;
 using System.ComponentModel.DataAnnotations;
-using MySql.Data.MySqlClient;
+using SafeVault.Utilities;
 
 namespace SafeVault.Pages
 {
     public class LoginModel : PageModel
     {
+        private readonly SignInManager<IdentityUser> _signInManager;
+        private readonly UserManager<IdentityUser> _userManager;
+
         [BindProperty]
         [Required(ErrorMessage = "Username is required.")]
+        [StringLength(ValidationRules.UsernameMaxLength, 
+            ErrorMessage = "Username cannot exceed {1} characters")]
         public string Username { get; set; } = string.Empty;
 
         [BindProperty]
         [Required(ErrorMessage = "Password is required.")]
         [DataType(DataType.Password)]
+        [RegularExpression(ValidationRules.PasswordRegex, 
+            ErrorMessage = ValidationRules.PasswordRegexError)]
         public string Password { get; set; } = string.Empty;
-
-        private readonly string _connectionString;
 
         public string Message { get; set; } = string.Empty;
 
-        public LoginModel(IConfiguration configuration)
+        public LoginModel(
+            SignInManager<IdentityUser> signInManager,
+            UserManager<IdentityUser> userManager)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") 
-                                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            _signInManager = signInManager;
+            _userManager = userManager;
         }
 
         public void OnGet()
@@ -31,49 +39,36 @@ namespace SafeVault.Pages
             // Initialize or reset any data if needed
         }
 
-        public IActionResult OnPost()
+        public async Task<IActionResult> OnPostAsync()
         {
-            // Validate the input
             if (!ModelState.IsValid)
             {
-                // Return the page with validation errors
                 return Page();
             }
 
-            try
-            {
-                // Verify the username and password
-                using (MySqlConnection connection = new MySqlConnection(_connectionString))
-                {
-                    string query = "SELECT COUNT(*) FROM Users WHERE Username = @Username AND Password = @Password;";
-                    MySqlCommand command = new MySqlCommand(query, connection);
-                    command.Parameters.AddWithValue("@Username", Username);
-                    command.Parameters.AddWithValue("@Password", Password); // Ensure passwords are hashed in production
+            // Replaced RAW SQL with parameterized queries to prevent SQL injection
+            // This is handled by ASP.NET Identity.
+            // The SignInManager will handle the password hashing and validation securely.
+            // Check if the user exists
+            var result = await _signInManager.PasswordSignInAsync(
+                Username,
+                Password,
+                isPersistent: false,
+                lockoutOnFailure: false);
 
-                    connection.Open();
-                    int userCount = Convert.ToInt32(command.ExecuteScalar());
-
-                    if (userCount > 0)
-                    {
-                        // Login successful
-                        Message = "Login successful!";
-                        return RedirectToPage("Dashboard"); // Redirect to a dashboard or home page
-                    }
-                    else
-                    {
-                        // Invalid credentials
-                        ModelState.AddModelError(string.Empty, "Invalid username or password.");
-                        return Page();
-                    }
-                }
-            }
-            catch (Exception ex)
+             if (result.Succeeded)
             {
-                // Handle database errors
-                ModelState.AddModelError(string.Empty, "An error occurred while verifying your credentials. Please try again.");
-                Console.WriteLine(ex.Message);
-                return Page();
+                var user = await _userManager.FindByNameAsync(Username);
+                var roles = await _userManager.GetRolesAsync(user);
+
+                if (roles.Contains("Admin"))
+                    return RedirectToPage("/AdminDashboard");
+                    
+                return RedirectToPage("/UserDashboard");
             }
+
+            ModelState.AddModelError(string.Empty, "Invalid login attempt.");
+            return Page();
         }
     }
 }

@@ -1,0 +1,8 @@
+@page
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "User")]
+@model SafeVault.Pages.UserDashboardModel
+
+<h1>User Dashboard</h1>
+<p>Welcome, @User.Identity.Name!</p>
+<!-- User-specific content -->

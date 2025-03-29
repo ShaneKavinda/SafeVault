@@ -1,0 +1,8 @@
+@page
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@model SafeVault.Pages.AdminDashboardModel
+
+<h1>Admin Dashboard</h1>
+<p>Welcome, @User.Identity.Name!</p>
+<!-- Admin-specific content -->
